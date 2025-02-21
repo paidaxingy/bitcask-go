@@ -1,19 +1,30 @@
 package fio
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+func destroyFile(name string) {
+	if err := os.RemoveAll(name); err != nil {
+		panic(err)
+	}
+}
 func TestNewFileIOManager(t *testing.T) {
 	fio, err := NewFileIOManager("a.data")
+	defer destroyFile("a.data")
 	assert.Nil(t, err)
 	assert.NotNil(t, fio)
+
+	err = fio.Close()
+	assert.Nil(t, err)
 }
 
 func TestFileIO_Write(t *testing.T) {
 	fio, err := NewFileIOManager("a.data")
+	defer destroyFile("a.data")
 	assert.Nil(t, err)
 	assert.NotNil(t, fio)
 
@@ -28,10 +39,14 @@ func TestFileIO_Write(t *testing.T) {
 	n, err = fio.Write([]byte("storage"))
 	assert.Equal(t, 7, n)
 	assert.Nil(t, err)
+
+	err = fio.Close()
+	assert.Nil(t, err)
 }
 
 func TestFileIO_Read(t *testing.T) {
 	fio, err := NewFileIOManager("a.data")
+	defer destroyFile("a.data")
 	assert.Nil(t, err)
 	assert.NotNil(t, fio)
 	_, err = fio.Write([]byte("key-a"))
@@ -50,17 +65,25 @@ func TestFileIO_Read(t *testing.T) {
 	assert.Equal(t, 5, n)
 	assert.Nil(t, err)
 	assert.Equal(t, []byte("key-b"), b2)
+
+	err = fio.Close()
+	assert.Nil(t, err)
 }
 func TestFileIO_Sync(t *testing.T) {
 	fio, err := NewFileIOManager("a.data")
+	defer destroyFile("a.data")
 	assert.Nil(t, err)
 	assert.NotNil(t, fio)
 	err = fio.Sync()
+	assert.Nil(t, err)
+
+	err = fio.Close()
 	assert.Nil(t, err)
 }
 
 func TestFileIO_Close(t *testing.T) {
 	fio, err := NewFileIOManager("a.data")
+	defer destroyFile("a.data")
 	assert.Nil(t, err)
 	assert.NotNil(t, fio)
 
