@@ -10,6 +10,13 @@ type Options struct {
 	IndexType IndexerType // 索引类型
 }
 
+// 迭代器选项
+type IteratorOptions struct {
+	Prefix []byte // 遍历前缀为指定值的 Key，默认为空
+
+	Reverse bool // 是否反向遍历，默认 false 是正向
+}
+
 type IndexerType = int8
 
 const (
@@ -25,4 +32,9 @@ var DefaultOptions = Options{
 	DataFileSize: 256 * 1024 * 1024, // 256MB
 	SyncWrites:   false,
 	IndexType:    BTree,
+}
+
+var DefaultIteratorOptions = IteratorOptions{
+	Prefix:  nil,
+	Reverse: false,
 }
