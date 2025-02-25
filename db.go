@@ -109,7 +109,9 @@ func (db *DB) Close() error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	if err := db.Close(); err != nil {
+	// 关闭索引
+	err := db.index.Close()
+	if err != nil {
 		return err
 	}
 
@@ -126,6 +128,9 @@ func (db *DB) Close() error {
 		return err
 	}
 	if err := seqNoFile.Sync(); err != nil {
+		return err
+	}
+	if err := seqNoFile.Close(); err != nil {
 		return err
 	}
 	if err := db.activeFile.Close(); err != nil {

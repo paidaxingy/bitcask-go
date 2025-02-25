@@ -30,10 +30,10 @@ func destroyDB(db *DB) {
 func TestOpen(t *testing.T) {
 	opts := DefaultOptions
 	db, err := Open(opts)
-	t.Log(db)
 	defer destroyDB(db)
 	assert.Nil(t, err)
 	assert.NotNil(t, db)
+
 }
 
 func TestDB_Put(t *testing.T) {

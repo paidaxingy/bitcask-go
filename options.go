@@ -38,10 +38,10 @@ const (
 )
 
 var DefaultOptions = Options{
-	DirPath:      "./tmp/bitcaskgo",
+	DirPath:      "./tmp",
 	DataFileSize: 256 * 1024 * 1024, // 256MB
 	SyncWrites:   false,
-	IndexType:    BPTree,
+	IndexType:    BTree,
 }
 
 var DefaultIteratorOptions = IteratorOptions{
