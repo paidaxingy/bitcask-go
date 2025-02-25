@@ -13,17 +13,21 @@ import (
 	"sync"
 )
 
+const seqNoKey = "seq.no"
+
 // DB 表示 Bitcask 数据库的核心结构体。
 // 它封装了数据库的所有状态和操作方法，是与数据库交互的主要接口。
 type DB struct {
-	options    Options
-	mu         *sync.RWMutex
-	fileIds    []int                     // 文件 id, 只能在加载索引的时候使用，不能在其他的地方更新和使用
-	activeFile *data.DataFile            // 当前活跃的数据文件，可以用于写入
-	olderFiles map[uint32]*data.DataFile // 旧的数据文件，只能用于读取
-	index      index.Indexer             // 内存索引
-	seqNo      uint64                    // 事务序列号，全局递增
-	isMerging  bool                      // 是否正在合并数据文件
+	options         Options
+	mu              *sync.RWMutex
+	fileIds         []int                     // 文件 id, 只能在加载索引的时候使用，不能在其他的地方更新和使用
+	activeFile      *data.DataFile            // 当前活跃的数据文件，可以用于写入
+	olderFiles      map[uint32]*data.DataFile // 旧的数据文件，只能用于读取
+	index           index.Indexer             // 内存索引
+	seqNo           uint64                    // 事务序列号，全局递增
+	isMerging       bool                      // 是否正在合并数据文件
+	seqNoFileExists bool                      // 是否存在事务 序列号文件
+	isInitial       bool                      // 是否是第一次初始化此数据目录
 }
 
 // Open 打开 bitcask 存储引擎实例
@@ -33,11 +37,22 @@ func Open(options Options) (*DB, error) {
 		return nil, err
 	}
 
+	var isInitial bool
+
 	// 判断数据目录是否存在，如果不存在就创建目录
 	if _, err := os.Stat(options.DirPath); os.IsNotExist(err) {
+		isInitial = true
 		if err := os.MkdirAll(options.DirPath, os.ModePerm); err != nil {
 			return nil, err
 		}
+	}
+
+	entries, err := os.ReadDir(options.DirPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		isInitial = true
 	}
 
 	// 初始化 DB 实例结构体
@@ -45,7 +60,8 @@ func Open(options Options) (*DB, error) {
 		options:    options,
 		mu:         new(sync.RWMutex),
 		olderFiles: make(map[uint32]*data.DataFile),
-		index:      index.NewIndexer(options.IndexType),
+		index:      index.NewIndexer(options.IndexType, options.DirPath, options.SyncWrites),
+		isInitial:  isInitial,
 	}
 
 	// load merge data files
@@ -58,15 +74,30 @@ func Open(options Options) (*DB, error) {
 		return nil, err
 	}
 
-	// load index from hint files
-	if err := db.loadIndexFromHintFile(); err != nil {
-		return nil, err
+	if options.IndexType != BPTree {
+		// 加载索引
+		// load index from hint files
+		if err := db.loadIndexFromHintFile(); err != nil {
+			return nil, err
+		}
+		// 从数据文件中加载索引
+		if err := db.loadIndexFromDataFiles(); err != nil {
+			return nil, err
+		}
 	}
-	// 从数据文件中加载索引
-	if err := db.loadIndexFromDataFiles(); err != nil {
-		return nil, err
+	// load seq no
+	if options.IndexType == BPTree {
+		if err := db.loadSeqNo(); err != nil {
+			return nil, err
+		}
+		if db.activeFile != nil {
+			size, err := db.activeFile.IoManager.Size()
+			if err != nil {
+				return nil, err
+			}
+			db.activeFile.WriteOff = size
+		}
 	}
-
 	return db, nil
 }
 
@@ -77,6 +108,26 @@ func (db *DB) Close() error {
 	}
 	db.mu.Lock()
 	defer db.mu.Unlock()
+
+	if err := db.Close(); err != nil {
+		return err
+	}
+
+	seqNoFile, err := data.OpenSeqNoFile(db.options.DirPath)
+	if err != nil {
+		return err
+	}
+	record := &data.LogRecord{
+		Key:   []byte(seqNoKey),
+		Value: []byte(strconv.FormatUint(db.seqNo, 10)),
+	}
+	encRecord, _ := data.EncodeLogRecord(record)
+	if err := seqNoFile.Write(encRecord); err != nil {
+		return err
+	}
+	if err := seqNoFile.Sync(); err != nil {
+		return err
+	}
 	if err := db.activeFile.Close(); err != nil {
 		return err
 	}
@@ -451,4 +502,29 @@ func checkOptions(options Options) error {
 		return errors.New("database data file size must be greater than 0")
 	}
 	return nil
+}
+
+func (db *DB) loadSeqNo() error {
+	filename := filepath.Join(db.options.DirPath, data.SeqNoFileName)
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return nil
+	}
+
+	seqNoFile, err := data.OpenSeqNoFile(db.options.DirPath)
+	if err != nil {
+		return err
+	}
+
+	record, _, err := seqNoFile.ReadLogRecord(0)
+	if err != nil {
+		return err
+
+	}
+	seqNo, err := strconv.ParseUint(string(record.Value), 10, 64)
+	if err != nil {
+		return err
+	}
+	db.seqNo = seqNo
+	db.seqNoFileExists = true
+	return os.Remove(filename)
 }
