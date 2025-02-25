@@ -35,7 +35,7 @@ const (
 )
 
 var DefaultOptions = Options{
-	DirPath:      "./tmp",
+	DirPath:      "./tmp/bitcaskgo",
 	DataFileSize: 256 * 1024 * 1024, // 256MB
 	SyncWrites:   false,
 	IndexType:    BTree,
