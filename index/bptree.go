@@ -2,6 +2,7 @@ package index
 
 import (
 	"bitcask-go/data"
+	"os"
 	"path/filepath"
 
 	"go.etcd.io/bbolt"
@@ -21,6 +22,9 @@ type BPlusTree struct {
 func NewBPlusTree(dirPath string, syncWrites bool) *BPlusTree {
 	opts := bbolt.DefaultOptions
 	opts.NoSync = !syncWrites
+	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
+		panic("failed to create dir")
+	}
 	bptree, err := bbolt.Open(filepath.Join(dirPath, bptreeIndexFileName), 0644, opts)
 	if err != nil {
 		panic("failed to open bptree")
@@ -35,14 +39,20 @@ func NewBPlusTree(dirPath string, syncWrites bool) *BPlusTree {
 }
 
 // Put 向索引中存储 key 对应的位置信息
-func (bpt *BPlusTree) Put(key []byte, pos *data.LogRecordPos) bool {
+func (bpt *BPlusTree) Put(key []byte, pos *data.LogRecordPos) *data.LogRecordPos {
+	var oldVal []byte
 	if err := bpt.tree.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket(indexBucketName)
+		oldVal = bucket.Get(key)
+
 		return bucket.Put(key, data.EncodeLogRecordPos(pos))
 	}); err != nil {
 		panic("failed to put key-value in bptree")
 	}
-	return true
+	if len(oldVal) == 0 {
+		return nil
+	}
+	return data.DecodeLogRecordPos(oldVal)
 }
 
 // Get 根据 key 取出对应的位置信息
@@ -63,19 +73,21 @@ func (bpt *BPlusTree) Get(key []byte) *data.LogRecordPos {
 }
 
 // Delete 根据 key 删除对应的位置信息
-func (bpt *BPlusTree) Delete(key []byte) bool {
-	var ok bool
+func (bpt *BPlusTree) Delete(key []byte) (*data.LogRecordPos, bool) {
+	var oldVal []byte
 	if err := bpt.tree.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket(indexBucketName)
-		if value := bucket.Get(key); len(value) != 0 {
-			ok = true
+		if oldVal = bucket.Get(key); len(oldVal) != 0 {
 			return bucket.Delete(key)
 		}
 		return nil
 	}); err != nil {
 		panic("failed to delete key-value in bptree")
 	}
-	return ok
+	if len(oldVal) == 0 {
+		return nil, false
+	}
+	return data.DecodeLogRecordPos(oldVal), true
 }
 
 // Size 索引中的数据量
@@ -125,7 +137,7 @@ func newBptreeIterator(tree *bbolt.DB, reverse bool) *bptreeIterator {
 
 func (bpi *bptreeIterator) Rewind() {
 	if bpi.reverse {
-		bpi.currKey, bpi.currValue = bpi.cursor.Prev()
+		bpi.currKey, bpi.currValue = bpi.cursor.Last()
 	} else {
 		bpi.currKey, bpi.currValue = bpi.cursor.First()
 	}
@@ -150,5 +162,5 @@ func (bpi *bptreeIterator) Value() *data.LogRecordPos {
 	return data.DecodeLogRecordPos(bpi.currValue)
 }
 func (bpi *bptreeIterator) Close() {
-	_ = bpi.tx.Rollback()
+	_ = bpi.tx.Commit()
 }

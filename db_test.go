@@ -283,3 +283,25 @@ func TestDB_FileLock(t *testing.T) {
 	assert.NotNil(t, db2)
 	destroyDB(db2)
 }
+func TestDB_Stat(t *testing.T) {
+	opts := DefaultOptions
+	db, err := Open(opts)
+	defer destroyDB(db)
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
+
+	for i := 100; i < 10000; i++ {
+		err := db.Put(utils.GetTestKey(i), utils.RandomValue(128))
+		assert.Nil(t, err)
+	}
+	for i := 100; i < 10000; i++ {
+		err := db.Delete(utils.GetTestKey(i))
+		assert.Nil(t, err)
+	}
+	for i := 2000; i < 5000; i++ {
+		err := db.Put(utils.GetTestKey(i), utils.RandomValue(128))
+		assert.Nil(t, err)
+	}
+	stat := db.Stat()
+	assert.NotNil(t, stat)
+}

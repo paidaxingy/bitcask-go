@@ -2,6 +2,7 @@ package bitcaskgo
 
 import (
 	"bitcask-go/data"
+	"bitcask-go/utils"
 	"io"
 	"os"
 	"path"
@@ -25,6 +26,29 @@ func (db *DB) Merge() error {
 	if db.isMerging {
 		db.mu.Unlock()
 		return ErrMergeIsProgress
+	}
+
+	// 查看可以 merge 的数据量是否达到阈值
+	totalSize, err := utils.DirSize(db.options.DirPath)
+	if err != nil {
+		db.mu.Unlock()
+		return err
+	}
+
+	if float32(db.reclaimSize)/float32(totalSize) < db.options.DataFileMerGeRatio {
+		db.mu.Unlock()
+		return ErrMergeRatioUnreached
+	}
+
+	// 查看剩余磁盘空间是否足够
+	availableDiskSize, err := utils.AvailableDiskSize(db.options.DirPath)
+	if err != nil {
+		db.mu.Unlock()
+		return err
+	}
+	if uint64(totalSize-db.reclaimSize) >= availableDiskSize {
+		db.mu.Unlock()
+		return ErrNoEnoughSpaceForMerge
 	}
 	db.isMerging = true
 	defer func() {
@@ -122,6 +146,7 @@ func (db *DB) Merge() error {
 	if err := hintFile.Sync(); err != nil {
 		return err
 	}
+
 	if err := mergeDB.Sync(); err != nil {
 		return err
 	}
@@ -142,7 +167,39 @@ func (db *DB) Merge() error {
 	if err := mergeFinishedFile.Sync(); err != nil {
 		return err
 	}
+	return nil
+}
 
+// 关闭指定目录下的所有文件
+func closeFilesInDir(dirPath string) error {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			// 递归处理子目录
+			if err := closeFilesInDir(filepath.Join(dirPath, entry.Name())); err != nil {
+				return err
+			}
+		} else {
+			filePath := filepath.Join(dirPath, entry.Name())
+			file, err := os.OpenFile(filePath, os.O_RDWR, 0666)
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return err
+			}
+			// 关闭文件
+			if err := file.Close(); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -178,6 +235,9 @@ func (db *DB) loadMergeFiles() error {
 			mergeFinished = true
 		}
 		if entry.Name() == data.SeqNoFileName {
+			continue
+		}
+		if entry.Name() == fileLockName {
 			continue
 		}
 		mergeFileNames = append(mergeFileNames, entry.Name())

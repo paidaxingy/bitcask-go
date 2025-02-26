@@ -12,6 +12,8 @@ type Options struct {
 	IndexType IndexerType // 索引类型
 
 	MMapAtStartup bool // 启动时是否使用 mmap 加载数据
+
+	DataFileMerGeRatio float32 // 数据文件合并的阈值
 }
 
 // 迭代器选项
@@ -42,12 +44,13 @@ const (
 )
 
 var DefaultOptions = Options{
-	DirPath:       "./tmp",
-	DataFileSize:  256 * 1024 * 1024, // 256MB
-	SyncWrites:    false,
-	BytesPerSync:  0,
-	IndexType:     BTree,
-	MMapAtStartup: true,
+	DirPath:            "./tmp",
+	DataFileSize:       256 * 1024 * 1024, // 256MB
+	SyncWrites:         false,
+	BytesPerSync:       0,
+	IndexType:          BTree,
+	MMapAtStartup:      true,
+	DataFileMerGeRatio: 0.5,
 }
 
 var DefaultIteratorOptions = IteratorOptions{
