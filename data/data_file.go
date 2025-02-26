@@ -27,33 +27,33 @@ type DataFile struct {
 }
 
 // OpenDataFile 打开新的数据文件
-func OpenDataFile(dirPath string, fileId uint32) (*DataFile, error) {
+func OpenDataFile(dirPath string, fileId uint32, ioType fio.FileIOType) (*DataFile, error) {
 	fileName := GetDataFileName(dirPath, fileId)
-	return newDatafile(fileName, fileId)
+	return newDatafile(fileName, fileId, ioType)
 }
 
 // OpenHintFile 打开 Hint 文件
 func OpenHintFile(dirPath string) (*DataFile, error) {
 	fileNmae := filepath.Join(dirPath, HintFileName)
-	return newDatafile(fileNmae, 0)
+	return newDatafile(fileNmae, 0, fio.StandardFile)
 }
 
 func OpenMergeFinishedFile(dirPath string) (*DataFile, error) {
 	fileNmae := filepath.Join(dirPath, MergeFinishedFile)
-	return newDatafile(fileNmae, 0)
+	return newDatafile(fileNmae, 0, fio.StandardFile)
 }
 
 func OpenSeqNoFile(dirPath string) (*DataFile, error) {
 	fileNmae := filepath.Join(dirPath, SeqNoFileName)
-	return newDatafile(fileNmae, 0)
+	return newDatafile(fileNmae, 0, fio.StandardFile)
 }
 
 func GetDataFileName(dirPath string, fileId uint32) string {
 	return filepath.Join(dirPath, fmt.Sprintf("%09d", fileId)+DataFileNameSuffix)
 }
 
-func newDatafile(fileName string, fileId uint32) (*DataFile, error) {
-	ioManager, err := fio.NewFileIOManager(fileName)
+func newDatafile(fileName string, fileId uint32, ioType fio.FileIOType) (*DataFile, error) {
+	ioManager, err := fio.NewIOManager(fileName, ioType)
 	if err != nil {
 		return nil, err
 	}
@@ -147,4 +147,16 @@ func (df *DataFile) readNBytes(n int64, offset int64) (b []byte, err error) {
 	b = make([]byte, n)
 	_, err = df.IoManager.Read(b, offset)
 	return
+}
+
+func (df *DataFile) SetIOManager(dirPath string, ioType fio.FileIOType) error {
+	if err := df.IoManager.Close(); err != nil {
+		return err
+	}
+	ioManager, err := fio.NewIOManager(GetDataFileName(dirPath, df.FileId), ioType)
+	if err != nil {
+		return err
+	}
+	df.IoManager = ioManager
+	return nil
 }

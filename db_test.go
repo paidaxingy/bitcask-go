@@ -11,10 +11,8 @@ import (
 // 测试完成之后销毁 DB 数据目录
 func destroyDB(db *DB) {
 	if db != nil {
-		if db.activeFile != nil {
-			if err := db.Close(); err != nil {
-				panic(err)
-			}
+		if err := db.Close(); err != nil {
+			panic(err)
 		}
 		for _, of := range db.olderFiles {
 			if of != nil {
@@ -268,4 +266,20 @@ func TestDB_Sync(t *testing.T) {
 
 	err = db.Sync()
 	assert.Nil(t, err)
+}
+
+func TestDB_FileLock(t *testing.T) {
+	opts := DefaultOptions
+	db, err := Open(opts)
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
+	_, err = Open(opts)
+	assert.Equal(t, ErrDatabaseIsUsing, err)
+
+	err = db.Close()
+	assert.Nil(t, err)
+	db2, err := Open(opts)
+	assert.Nil(t, err)
+	assert.NotNil(t, db2)
+	destroyDB(db2)
 }
