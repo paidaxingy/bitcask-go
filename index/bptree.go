@@ -162,5 +162,5 @@ func (bpi *bptreeIterator) Value() *data.LogRecordPos {
 	return data.DecodeLogRecordPos(bpi.currValue)
 }
 func (bpi *bptreeIterator) Close() {
-	_ = bpi.tx.Commit()
+	_ = bpi.tx.Rollback()
 }
