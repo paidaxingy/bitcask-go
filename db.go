@@ -220,6 +220,14 @@ func (db *DB) Stat() *Stat {
 	}
 }
 
+// 备份数据库, 备份到指定目录
+func (db *DB) Backup(dir string) error {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	return utils.CopyDir(db.options.DirPath, dir, []string{fileLockName})
+}
+
 // 写入 Key/Value 数据，key 不能为空，否则返回错误。
 func (db *DB) Put(key []byte, value []byte) error {
 	// 判断key是否有效

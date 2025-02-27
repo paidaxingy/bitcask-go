@@ -300,3 +300,28 @@ func TestDB_Stat(t *testing.T) {
 	stat := db.Stat()
 	assert.NotNil(t, stat)
 }
+
+func TestDB_Backup(t *testing.T) {
+	opts := DefaultOptions
+	db, err := Open(opts)
+	defer destroyDB(db)
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
+
+	for i := 1; i < 1000000; i++ {
+		err := db.Put(utils.GetTestKey(i), utils.RandomValue(128))
+		assert.Nil(t, err)
+	}
+
+	backupDir := "./tmp-backup"
+	err = db.Backup(backupDir)
+	assert.Nil(t, err)
+
+	opts1 := DefaultOptions
+	opts1.DirPath = backupDir
+	db1, err := Open(opts1)
+	defer destroyDB(db1)
+	assert.Nil(t, err)
+	assert.NotNil(t, db1)
+
+}
