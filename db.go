@@ -149,17 +149,16 @@ func (db *DB) Close() error {
 		}
 	}()
 
-	if db.activeFile == nil {
-		return nil
-	}
-	db.mu.Lock()
-	defer db.mu.Unlock()
-
-	// 关闭索引
 	err := db.index.Close()
 	if err != nil {
 		return err
 	}
+	if db.activeFile == nil {
+
+		return nil
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
 
 	seqNoFile, err := data.OpenSeqNoFile(db.options.DirPath)
 	if err != nil {

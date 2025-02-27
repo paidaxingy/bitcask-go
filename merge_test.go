@@ -2,7 +2,6 @@ package bitcaskgo
 
 import (
 	"bitcask-go/utils"
-	"os"
 	"sync"
 	"testing"
 
@@ -41,7 +40,6 @@ func TestDB_Merge2(t *testing.T) {
 	assert.Nil(t, err)
 	db2, err := newTestMergeDB(dir)
 	defer destroyDB(db2)
-	t.Log(db2, err)
 	assert.Nil(t, err)
 	keys := db2.ListKey()
 	assert.Equal(t, 50000, len(keys))
@@ -55,9 +53,8 @@ func TestDB_Merge2(t *testing.T) {
 
 // 存在失效的、重复 Put 的数据
 func TestDB_Merge3(t *testing.T) {
-	dir, _ := os.MkdirTemp("", "bitcask-go-merge-3")
+	dir := "./tmp"
 	db, err := newTestMergeDB(dir)
-	defer destroyDB(db)
 	assert.Nil(t, err)
 	assert.NotNil(t, db)
 
@@ -81,9 +78,7 @@ func TestDB_Merge3(t *testing.T) {
 	assert.Nil(t, err)
 
 	db2, err := newTestMergeDB(dir)
-	defer func() {
-		_ = db2.Close()
-	}()
+	defer destroyDB(db2)
 	assert.Nil(t, err)
 	keys := db2.ListKey()
 	assert.Equal(t, 40000, len(keys))
@@ -101,9 +96,9 @@ func TestDB_Merge3(t *testing.T) {
 
 // 全部为无效数据
 func TestDB_Merge4(t *testing.T) {
-	dir, _ := os.MkdirTemp("", "bitcask-go-merge-4")
+	dir := "./tmp"
 	db, err := newTestMergeDB(dir)
-	defer destroyDB(db)
+
 	assert.Nil(t, err)
 	assert.NotNil(t, db)
 
@@ -124,9 +119,7 @@ func TestDB_Merge4(t *testing.T) {
 	assert.Nil(t, err)
 
 	db2, err := newTestMergeDB(dir)
-	defer func() {
-		_ = db2.Close()
-	}()
+	defer destroyDB(db2)
 	assert.Nil(t, err)
 	keys := db2.ListKey()
 	assert.Equal(t, 0, len(keys))
@@ -134,9 +127,9 @@ func TestDB_Merge4(t *testing.T) {
 
 // Merge 的过程中有新的数据写入或删除
 func TestDB_Merge5(t *testing.T) {
-	dir, _ := os.MkdirTemp("", "bitcask-go-merge-2")
+	dir := "./tmp"
 	db, err := newTestMergeDB(dir)
-	defer destroyDB(db)
+
 	assert.Nil(t, err)
 	assert.NotNil(t, db)
 
@@ -167,6 +160,7 @@ func TestDB_Merge5(t *testing.T) {
 	assert.Nil(t, err)
 
 	db2, err := newTestMergeDB(dir)
+	defer destroyDB(db2)
 	assert.Nil(t, err)
 	assert.NotNil(t, db2)
 	keys := db2.ListKey()
@@ -177,7 +171,6 @@ func TestDB_Merge5(t *testing.T) {
 		assert.Nil(t, err)
 		assert.NotNil(t, val)
 	}
-	_ = db2.Close()
 }
 
 func newTestMergeDB(path string) (*DB, error) {

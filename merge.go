@@ -99,12 +99,22 @@ func (db *DB) Merge() error {
 	mergeOptions.DirPath = mergePath
 	mergeOptions.SyncWrites = false
 	mergeDB, err := Open(mergeOptions)
+	defer func() {
+		if err := mergeDB.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	if err != nil {
 		return err
 	}
 
 	// open hint file
 	hintFile, err := data.OpenHintFile(mergePath)
+	defer func() {
+		if err := hintFile.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	if err != nil {
 		return err
 	}
@@ -150,8 +160,12 @@ func (db *DB) Merge() error {
 	if err := mergeDB.Sync(); err != nil {
 		return err
 	}
-
 	mergeFinishedFile, err := data.OpenMergeFinishedFile(mergePath)
+	defer func() {
+		if err := mergeFinishedFile.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	if err != nil {
 		return err
 	}
@@ -166,39 +180,6 @@ func (db *DB) Merge() error {
 	}
 	if err := mergeFinishedFile.Sync(); err != nil {
 		return err
-	}
-	return nil
-}
-
-// 关闭指定目录下的所有文件
-func closeFilesInDir(dirPath string) error {
-	entries, err := os.ReadDir(dirPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			// 递归处理子目录
-			if err := closeFilesInDir(filepath.Join(dirPath, entry.Name())); err != nil {
-				return err
-			}
-		} else {
-			filePath := filepath.Join(dirPath, entry.Name())
-			file, err := os.OpenFile(filePath, os.O_RDWR, 0666)
-			if err != nil {
-				if os.IsNotExist(err) {
-					continue
-				}
-				return err
-			}
-			// 关闭文件
-			if err := file.Close(); err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }
@@ -220,7 +201,9 @@ func (db *DB) loadMergeFiles() error {
 		return nil
 	}
 	defer func() {
-		_ = os.RemoveAll(mergePath)
+		if err := os.RemoveAll(mergePath); err != nil {
+			panic(err)
+		}
 	}()
 
 	dirEntries, err := os.ReadDir(mergePath)
@@ -255,13 +238,18 @@ func (db *DB) loadMergeFiles() error {
 	for ; fileId < nonMergeFileId; fileId++ {
 		fileName := data.GetDataFileName(mergePath, fileId)
 		if _, err := os.Stat(fileName); err == nil {
+
 			if err := os.Remove(fileName); err != nil {
 				return err
 			}
 		}
 	}
 	// move new data file to data dir
+	fileId = 0
 	for _, fileName := range mergeFileNames {
+		if fileId < nonMergeFileId {
+			continue
+		}
 		srcPath := filepath.Join(mergePath, fileName)
 		destPath := filepath.Join(db.options.DirPath, fileName)
 		if err := os.Rename(srcPath, destPath); err != nil {
@@ -273,6 +261,11 @@ func (db *DB) loadMergeFiles() error {
 
 func (db *DB) getNonMergeFileId(dirPath string) (uint32, error) {
 	mergeFinishedFile, err := data.OpenMergeFinishedFile(dirPath)
+	defer func() {
+		if err := mergeFinishedFile.Close(); err != nil {
+			panic(err)
+		}
+	}()
 	if err != nil {
 		return 0, err
 	}

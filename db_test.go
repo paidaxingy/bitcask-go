@@ -14,11 +14,6 @@ func destroyDB(db *DB) {
 		if err := db.Close(); err != nil {
 			panic(err)
 		}
-		for _, of := range db.olderFiles {
-			if of != nil {
-				_ = of.Close()
-			}
-		}
 		err := os.RemoveAll(db.options.DirPath)
 		if err != nil {
 			panic(err)
