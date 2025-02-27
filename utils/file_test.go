@@ -16,6 +16,7 @@ func TestDirSize(t *testing.T) {
 func TestAvailableDiskSize(t *testing.T) {
 	path := "."
 	size, err := AvailableDiskSize(path)
+	t.Log(size)
 	assert.Nil(t, err)
 	assert.True(t, size > 0)
 }
