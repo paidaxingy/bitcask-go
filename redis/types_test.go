@@ -69,3 +69,61 @@ func TestRedisDataStructure_Del_Type(t *testing.T) {
 	assert.Equal(t, err, bitcask.ErrKeyNotFound)
 
 }
+
+func TestRedisDataStructure_HGet_HSet(t *testing.T) {
+	opts := bitcask.DefaultOptions
+	rds, err := NewRedisDataStructure(opts)
+	defer destroyRds(rds, opts.DirPath)
+	assert.Nil(t, err)
+
+	ok1, err := rds.HSet(utils.GetTestKey(1), []byte("field1"), utils.RandomValue(100))
+	assert.Nil(t, err)
+	assert.True(t, ok1)
+
+	ok2, err := rds.HSet(utils.GetTestKey(1), []byte("field1"), utils.RandomValue(100))
+	assert.Nil(t, err)
+	assert.False(t, ok2)
+
+	ok3, err := rds.HSet(utils.GetTestKey(1), []byte("field2"), utils.RandomValue(100))
+	assert.Nil(t, err)
+	assert.True(t, ok3)
+
+	val1, err := rds.HGet(utils.GetTestKey(1), []byte("field1"))
+	assert.Nil(t, err)
+	assert.NotNil(t, val1)
+
+	val2, err := rds.HGet(utils.GetTestKey(1), []byte("field2"))
+	assert.Nil(t, err)
+	assert.NotNil(t, val2)
+
+	val3, err := rds.HGet(utils.GetTestKey(1), []byte("field3"))
+	assert.Equal(t, err, bitcask.ErrKeyNotFound)
+	assert.Nil(t, val3)
+}
+
+func TestRedisDataStructure_HDel(t *testing.T) {
+	opts := bitcask.DefaultOptions
+	rds, err := NewRedisDataStructure(opts)
+	defer destroyRds(rds, opts.DirPath)
+	assert.Nil(t, err)
+
+	del1, err := rds.HDel(utils.GetTestKey(111), nil)
+	assert.Nil(t, err)
+	assert.False(t, del1)
+
+	ok1, err := rds.HSet(utils.GetTestKey(1), []byte("field1"), utils.RandomValue(100))
+	assert.Nil(t, err)
+	assert.True(t, ok1)
+
+	ok2, err := rds.HSet(utils.GetTestKey(1), []byte("field1"), utils.RandomValue(100))
+	assert.Nil(t, err)
+	assert.False(t, ok2)
+
+	ok3, err := rds.HSet(utils.GetTestKey(1), []byte("field2"), utils.RandomValue(100))
+	assert.Nil(t, err)
+	assert.True(t, ok3)
+
+	del2, err := rds.HDel(utils.GetTestKey(1), []byte("field2"))
+	assert.Nil(t, err)
+	assert.True(t, del2)
+}
