@@ -166,6 +166,96 @@ func (rds *RedisDataStructure) HDel(key, field []byte) (bool, error) {
 	return exist, nil
 }
 
+// ============================== Set ==============================
+
+func (rds *RedisDataStructure) SAdd(key, member []byte) (bool, error) {
+	// 先查找元数据
+	meta, err := rds.findMetadata(key, Set)
+	if err != nil {
+		return false, err
+	}
+
+	// 构造 Set 数据部分的 key
+	sk := &setInternalKey{
+		key:     key,
+		version: meta.version,
+		member:  member,
+	}
+	encKey := sk.encode()
+
+	// 查找旧值
+
+	var ok bool = false
+	if _, err := rds.db.Get(encKey); err == bitcask.ErrKeyNotFound {
+		wb := rds.db.NewWriteBatch(bitcask.DefaultWriteBatchOptions)
+		meta.size++
+		_ = wb.Put(key, meta.encode())
+		_ = wb.Put(encKey, nil)
+		if err := wb.Commit(); err != nil {
+			return false, err
+		}
+		ok = true
+	}
+	return ok, nil
+
+}
+
+func (rds *RedisDataStructure) SIsMember(key, member []byte) (bool, error) {
+	// 先查找元数据
+	meta, err := rds.findMetadata(key, Set)
+	if err != nil {
+		return false, err
+	}
+	if meta.size == 0 {
+		return false, nil
+	}
+
+	sk := &setInternalKey{
+		key:     key,
+		version: meta.version,
+		member:  member,
+	}
+	encKey := sk.encode()
+	_, err = rds.db.Get(encKey)
+	if err != nil && err != bitcask.ErrKeyNotFound {
+		return false, nil
+	}
+	if err == bitcask.ErrKeyNotFound {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (rds *RedisDataStructure) SRem(key, member []byte) (bool, error) {
+	// 先查找元数据
+	meta, err := rds.findMetadata(key, Set)
+	if err != nil {
+		return false, err
+	}
+	if meta.size == 0 {
+		return false, nil
+	}
+
+	sk := &setInternalKey{
+		key:     key,
+		version: meta.version,
+		member:  member,
+	}
+	encKey := sk.encode()
+	if _, err := rds.db.Get(encKey); err == bitcask.ErrKeyNotFound {
+		return false, nil
+	}
+
+	wb := rds.db.NewWriteBatch(bitcask.DefaultWriteBatchOptions)
+	meta.size--
+	_ = wb.Put(key, meta.encode())
+	_ = wb.Delete(encKey)
+	if err := wb.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (rds *RedisDataStructure) findMetadata(key []byte, dataType redisDataType) (*metadata, error) {
 	metaBuf, err := rds.db.Get(key)
 	if err != nil && err != bitcask.ErrKeyNotFound {

@@ -70,7 +70,7 @@ func TestRedisDataStructure_Del_Type(t *testing.T) {
 
 }
 
-func TestRedisDataStructure_HGet_HSet(t *testing.T) {
+func TestRedisDataStructure_HGet(t *testing.T) {
 	opts := bitcask.DefaultOptions
 	rds, err := NewRedisDataStructure(opts)
 	defer destroyRds(rds, opts.DirPath)
@@ -126,4 +126,70 @@ func TestRedisDataStructure_HDel(t *testing.T) {
 	del2, err := rds.HDel(utils.GetTestKey(1), []byte("field2"))
 	assert.Nil(t, err)
 	assert.True(t, del2)
+}
+
+func TestRedisDataStructure_SIsMember(t *testing.T) {
+	opts := bitcask.DefaultOptions
+	rds, err := NewRedisDataStructure(opts)
+	defer destroyRds(rds, opts.DirPath)
+	assert.Nil(t, err)
+
+	ok, err := rds.SAdd(utils.GetTestKey(1), []byte("member1"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	ok, err = rds.SAdd(utils.GetTestKey(1), []byte("member1"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+
+	ok, err = rds.SAdd(utils.GetTestKey(1), []byte("member2"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	ok, err = rds.SIsMember(utils.GetTestKey(2), []byte("member1"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+
+	ok, err = rds.SIsMember(utils.GetTestKey(1), []byte("member1"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	ok, err = rds.SIsMember(utils.GetTestKey(1), []byte("member2"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	ok, err = rds.SIsMember(utils.GetTestKey(1), []byte("member3"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+}
+
+func TestRedisDataStructure_SRem(t *testing.T) {
+	opts := bitcask.DefaultOptions
+	rds, err := NewRedisDataStructure(opts)
+	defer destroyRds(rds, opts.DirPath)
+	assert.Nil(t, err)
+
+	ok, err := rds.SAdd(utils.GetTestKey(1), []byte("member1"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	ok, err = rds.SAdd(utils.GetTestKey(1), []byte("member1"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+
+	ok, err = rds.SAdd(utils.GetTestKey(1), []byte("member2"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	ok, err = rds.SRem(utils.GetTestKey(2), []byte("member2"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+
+	ok, err = rds.SRem(utils.GetTestKey(1), []byte("member2"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	ok, err = rds.SRem(utils.GetTestKey(1), []byte("member3"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
 }
