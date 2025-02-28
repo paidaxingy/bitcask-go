@@ -193,3 +193,61 @@ func TestRedisDataStructure_SRem(t *testing.T) {
 	assert.Nil(t, err)
 	assert.False(t, ok)
 }
+
+func TestRedisDataStructure_LPop(t *testing.T) {
+	opts := bitcask.DefaultOptions
+	rds, err := NewRedisDataStructure(opts)
+	defer destroyRds(rds, opts.DirPath)
+	assert.Nil(t, err)
+
+	res, err := rds.LPush(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.Equal(t, res, uint32(1))
+	res, err = rds.LPush(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.Equal(t, res, uint32(2))
+	res, err = rds.LPush(utils.GetTestKey(1), []byte("val-2"))
+	assert.Nil(t, err)
+	assert.Equal(t, res, uint32(3))
+
+	val, err := rds.LPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.Equal(t, val, []byte("val-2"))
+
+	val, err = rds.LPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.Equal(t, val, []byte("val-1"))
+
+	val, err = rds.LPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.Equal(t, val, []byte("val-1"))
+}
+
+func TestRedisDataStructure_RPop(t *testing.T) {
+	opts := bitcask.DefaultOptions
+	rds, err := NewRedisDataStructure(opts)
+	defer destroyRds(rds, opts.DirPath)
+	assert.Nil(t, err)
+
+	res, err := rds.RPush(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.Equal(t, res, uint32(1))
+	res, err = rds.RPush(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.Equal(t, res, uint32(2))
+	res, err = rds.RPush(utils.GetTestKey(1), []byte("val-2"))
+	assert.Nil(t, err)
+	assert.Equal(t, res, uint32(3))
+
+	val, err := rds.RPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.Equal(t, val, []byte("val-2"))
+
+	val, err = rds.RPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.Equal(t, val, []byte("val-1"))
+
+	val, err = rds.RPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.Equal(t, val, []byte("val-1"))
+}
