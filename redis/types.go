@@ -2,6 +2,7 @@ package redis
 
 import (
 	bitcask "bitcask-go"
+	"bitcask-go/utils"
 	"encoding/binary"
 	"errors"
 	"time"
@@ -340,6 +341,81 @@ func (rds *RedisDataStructure) popInner(key []byte, isLeft bool) ([]byte, error)
 		return nil, err
 	}
 	return element, nil
+}
+
+// ============================== ZSet ==============================
+func (rds *RedisDataStructure) ZAdd(key []byte, score float64, member []byte) (bool, error) {
+	// 先查找元数据
+	meta, err := rds.findMetadata(key, ZSet)
+	if err != nil {
+		return false, err
+	}
+
+	// 构造 ZSet 数据部分的 key
+	zk := &zsetInternalKey{
+		key:     key,
+		version: meta.version,
+		score:   score,
+		member:  member,
+	}
+	encKey := zk.encodeWithMember()
+
+	// 查找旧值
+	var exist bool = true
+	value, err := rds.db.Get(encKey)
+	if err != nil && err != bitcask.ErrKeyNotFound {
+		return false, err
+	}
+	if err == bitcask.ErrKeyNotFound {
+		exist = false
+	}
+	if exist {
+		if utils.FloatFromBytes(value) == score {
+			return false, nil
+		}
+	}
+
+	wb := rds.db.NewWriteBatch(bitcask.DefaultWriteBatchOptions)
+	if !exist {
+		meta.size++
+		_ = wb.Put(key, meta.encode())
+	} else {
+		oldKey := &zsetInternalKey{
+			key:     key,
+			version: meta.version,
+			score:   utils.FloatFromBytes(value),
+			member:  member,
+		}
+		_ = wb.Delete(oldKey.encodeWithScore())
+	}
+	_ = wb.Put(zk.encodeWithMember(), utils.Float64ToBytes(score))
+	_ = wb.Put(zk.encodeWithScore(), nil)
+	if err := wb.Commit(); err != nil {
+		return false, err
+	}
+	return !exist, nil
+}
+
+func (rds *RedisDataStructure) ZScore(key, member []byte) (float64, error) {
+	// 先查找元数据
+	meta, err := rds.findMetadata(key, ZSet)
+	if err != nil {
+		return -1, err
+	}
+	if meta.size == 0 {
+		return -1, nil
+	}
+
+	zk := &zsetInternalKey{
+		key:     key,
+		version: meta.version,
+		member:  member,
+	}
+	value, err := rds.db.Get(zk.encodeWithMember())
+	if err != nil {
+		return -1, err
+	}
+	return utils.FloatFromBytes(value), nil
 }
 
 // ============================== 通用 ==============================

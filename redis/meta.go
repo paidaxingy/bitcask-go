@@ -1,6 +1,7 @@
 package redis
 
 import (
+	"bitcask-go/utils"
 	"encoding/binary"
 	"math"
 )
@@ -118,5 +119,38 @@ func (lk *listInternalKey) encode() []byte {
 	binary.LittleEndian.PutUint64(buf[index:index+8], uint64(lk.version))
 	index += 8
 	binary.LittleEndian.PutUint64(buf[index:index+8], lk.index)
+	return buf
+}
+
+type zsetInternalKey struct {
+	key     []byte
+	version int64
+	score   float64
+	member  []byte
+}
+
+func (zk *zsetInternalKey) encodeWithMember() []byte {
+	buf := make([]byte, len(zk.key)+8+len(zk.member)+8)
+	var index = 0
+	copy(buf[index:index+len(zk.key)], zk.key)
+	index += len(zk.key)
+	binary.LittleEndian.PutUint64(buf[index:index+8], uint64(zk.version))
+	index += 8
+	copy(buf[index:index+len(zk.member)], zk.member)
+	return buf
+}
+func (zk *zsetInternalKey) encodeWithScore() []byte {
+	scoreBuf := utils.Float64ToBytes(zk.score)
+	buf := make([]byte, len(zk.key)+8+len(zk.member)+len(scoreBuf)+4)
+	var index = 0
+	copy(buf[index:index+len(zk.key)], zk.key)
+	index += len(zk.key)
+	binary.LittleEndian.PutUint64(buf[index:index+8], uint64(zk.version))
+	index += 8
+	copy(buf[index:index+len(scoreBuf)], scoreBuf)
+	index += len(scoreBuf)
+	copy(buf[index:index+len(zk.member)], zk.member)
+	index += len(zk.member)
+	binary.LittleEndian.PutUint32(buf[index:index+4], uint32(len(zk.member)))
 	return buf
 }
